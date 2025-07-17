@@ -122,7 +122,7 @@ void run_tui() {
                         }
                     }
                 } else if (current_selection == 3) { // Refresh
-                    // The loop already refreshes, so we just need to do nothing and let it loop
+                    werase(status_win);
                 } else if (current_selection == 4) { // Exit
                     delwin(header_win);
                     delwin(status_win);
