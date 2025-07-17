@@ -113,12 +113,24 @@ void run_tui() {
                     std::string task_name = get_input("Start Task Name: ");
                     if (!task_name.empty()) {
                         if (!start_task(task_name)) {
-                            WINDOW* warning_win = newwin(5, 60, (LINES - 5) / 2, (COLS - 60) / 2);
+                            int win_h = 7;
+                            int win_w = 62;
+                            WINDOW* warning_win = newwin(win_h, win_w, (LINES - win_h) / 2, (COLS - win_w) / 2);
                             box(warning_win, 0, 0);
-                            mvwprintw(warning_win, 1, 2, "A task is already running.");
-                            mvwprintw(warning_win, 2, 2, "Maybe you would like to stop the previous task first?");
+
+                            const char* line1 = "A task is already running.";
+                            const char* line2 = "Maybe you would like to stop the previous task first?";
+                            const char* button = "< OK >";
+
+                            mvwprintw(warning_win, 2, (win_w - strlen(line1)) / 2, line1);
+                            mvwprintw(warning_win, 3, (win_w - strlen(line2)) / 2, line2);
+                            
+                            wattron(warning_win, A_REVERSE);
+                            mvwprintw(warning_win, 5, (win_w - strlen(button)) / 2, button);
+                            wattroff(warning_win, A_REVERSE);
+                            
                             wrefresh(warning_win);
-                            getch();
+                            while(getch() != '\n');
                             delwin(warning_win);
                         }
                     }
