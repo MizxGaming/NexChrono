@@ -1,87 +1,136 @@
 #include "main.h"
-#include <iostream>
-#include <string>
+#include <ncurses.h>
 #include <vector>
-#include <sstream>
-#include <limits>
+#include <string>
+#include <algorithm> // For std::max
+#include <cstring>   // For strlen
 
-// Function to clear the terminal screen
-void clear_screen() {
-#ifdef _WIN32
-    system("cls");
-#else
-    system("clear");
-#endif
+// This function now only creates/recreates the windows. No refreshing.
+void draw_layout(WINDOW*& header_win, WINDOW*& status_win, WINDOW*& menu_win) {
+    int term_y, term_x;
+    getmaxyx(stdscr, term_y, term_x);
+
+    // Header window
+    int header_h = 5;
+    if (header_win) delwin(header_win);
+    header_win = newwin(header_h, term_x, 0, 0);
+
+    // Status window
+    int status_h = term_y - header_h - 8;
+    if (status_win) delwin(status_win);
+    status_win = newwin(status_h, term_x, header_h, 0);
+
+    // Menu window
+    int menu_h = 8;
+    if (menu_win) delwin(menu_win);
+    menu_win = newwin(menu_h, term_x, term_y - menu_h, 0);
 }
 
-// The main function for the TUI
+// This function now only gets input and does not touch the main screen.
+std::string get_input(const char* prompt) {
+    int term_y, term_x;
+    getmaxyx(stdscr, term_y, term_x);
+
+    int input_win_h = 3;
+    int input_win_w = 40;
+    WINDOW* input_win = newwin(input_win_h, input_win_w, (term_y - input_win_h) / 2, (term_x - input_win_w) / 2);
+    box(input_win, 0, 0);
+    mvwprintw(input_win, 1, 2, prompt);
+    wrefresh(input_win); // Refresh only this small, temporary window
+
+    char input_str[50];
+    echo();
+    curs_set(1);
+    wgetstr(input_win, input_str);
+    curs_set(0);
+    noecho();
+
+    delwin(input_win);
+
+    return std::string(input_str);
+}
+
 void run_tui() {
-    std::string command;
+    initscr();
+    cbreak();
+    noecho();
+    curs_set(0);
+    keypad(stdscr, TRUE);
+    timeout(1000); // Refresh every second
+
+    WINDOW *header_win = nullptr, *status_win = nullptr, *menu_win = nullptr;
+    draw_layout(header_win, status_win, menu_win);
+
+    std::vector<std::string> menu_items = {"Start Task", "Stop Task", "Clear Data", "Refresh", "Exit"};
+    int current_selection = 0;
 
     while (true) {
-        clear_screen();
-        std::cout << "--- Time Tracker TUI ---" << std::endl;
-        std::cout << "--------------------------" << std::endl;
-        show_status();
-        std::cout << "--------------------------" << std::endl;
-        std::cout << "Commands:" << std::endl;
-        std::cout << "  start <task_name> - Start or resume a task" << std::endl;
-        std::cout << "  stop <task_name>  - Stop a running task" << std::endl;
-        std::cout << "  clear             - Clear all task data" << std::endl;
-        std::cout << "  exit              - Exit the application" << std::endl;
-        std::cout << "> ";
+        // --- SINGLE AUTHORITATIVE REDRAW SECTION ---
+        clear(); // Clear the virtual screen
+        
+        // Re-draw the layout borders and titles
+        box(header_win, 0, 0);
+        mvwprintw(header_win, 2, (getmaxx(header_win) - 9) / 2, "NexChrono");
 
-        std::getline(std::cin, command);
+        box(status_win, 0, 0);
+        mvwprintw(status_win, 0, 2, "[ Tasks ]");
+        show_status(status_win); // Ask show_status to fill its window
 
-        std::stringstream ss(command);
-        std::string cmd;
-        ss >> cmd;
+        box(menu_win, 0, 0);
+        mvwprintw(menu_win, 0, 2, "[ Menu ]");
+        for (int i = 0; i < menu_items.size(); ++i) {
+            if (i == current_selection) wattron(menu_win, A_REVERSE);
+            mvwprintw(menu_win, i + 2, 4, menu_items[i].c_str());
+            if (i == current_selection) wattroff(menu_win, A_REVERSE);
+        }
+        
+        // Refresh the physical screen
+        refresh();
+        wrefresh(header_win);
+        wrefresh(status_win);
+        wrefresh(menu_win);
+        // --- END OF REDRAW SECTION ---
 
-        if (cmd == "start") {
-            std::string task_name;
-            ss >> task_name;
-            if (!task_name.empty()) {
-                start_task(task_name);
-                // After start_task finishes (user presses 's'), wait for user to press Enter to continue
-                std::cout << "\nPress Enter to return to the menu...";
-                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-            } else {
-                std::cout << "Please provide a task name." << std::endl;
-            }
-        } else if (cmd == "stop") {
-            std::string task_name;
-            ss >> task_name;
-            if (!task_name.empty()) {
-                stop_task(task_name);
-            } else {
-                std::cout << "Please provide a task name." << std::endl;
-            }
-             std::cout << "\nPress Enter to return to the menu...";
-             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-             // Since we are not in the main input loop, we need to consume the newline
-             if (std::cin.peek() == '\n') {
-                std::cin.ignore();
-             }
-        } else if (cmd == "status") {
-            // Status is already shown in the main loop
+        int ch = getch();
+
+        if (ch == KEY_RESIZE) {
+            endwin();
+            refresh();
+            clear();
+            draw_layout(header_win, status_win, menu_win);
             continue;
-        } else if (cmd == "clear") {
-            clear_data();
-             std::cout << "\nPress Enter to return to the menu...";
-             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-             if (std::cin.peek() == '\n') {
-                std::cin.ignore();
-             }
-        } else if (cmd == "exit") {
-            break;
-        } else {
-            if (!cmd.empty()) {
-                std::cout << "Unknown command." << std::endl;
-                 std::cout << "\nPress Enter to return to the menu...";
-                 std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                 if (std::cin.peek() == '\n') {
-                    std::cin.ignore();
-                 }
+        }
+
+        switch (ch) {
+            case KEY_UP:
+                current_selection = (current_selection - 1 + menu_items.size()) % menu_items.size();
+                break;
+            case KEY_DOWN:
+                current_selection = (current_selection + 1) % menu_items.size();
+                break;
+            case '\n': { // Enter key
+                if (current_selection == 0) { // Start Task
+                    std::string task_name = get_input("Start Task Name: ");
+                    if (!task_name.empty()) start_task(task_name);
+                } else if (current_selection == 1) { // Stop Task
+                    std::string task_name = get_input("Stop Task Name: ");
+                    if (!task_name.empty()) stop_task(task_name);
+                } else if (current_selection == 2) { // Clear Data
+                    if (get_input("Are you sure? (y/n): ") == "y") {
+                        if (get_input("Type 'confirm' to delete all data: ") == "confirm") {
+                            clear_data();
+                        }
+                    }
+                } else if (current_selection == 3) { // Refresh
+                    // The loop already refreshes, so we just need to do nothing and let it loop
+                } else if (current_selection == 4) { // Exit
+                    delwin(header_win);
+                    delwin(status_win);
+                    delwin(menu_win);
+                    endwin();
+                    return;
+                }
+                break;
             }
         }
     }
