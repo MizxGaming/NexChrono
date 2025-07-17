@@ -75,14 +75,27 @@ void write_tasks(const std::vector<Task>& tasks) {
     file.close();
 }
 
-void start_task(const std::string& task_name) {
+bool start_task(const std::string& task_name) {
     std::vector<Task> tasks = read_tasks();
+    
+    bool is_task_running = false;
+    for (const auto& task : tasks) {
+        if (task.running) {
+            is_task_running = true;
+            break;
+        }
+    }
+
+    if (is_task_running) {
+        return false;
+    }
+
     auto it = std::find_if(tasks.begin(), tasks.end(), [&](const Task& task){
         return task.name == task_name;
     });
 
     if (it != tasks.end()) {
-        if (it->running) return;
+        if (it->running) return false;
         it->start_time = std::chrono::system_clock::now();
         it->running = true;
     } else {
@@ -102,6 +115,7 @@ void start_task(const std::string& task_name) {
     it->date = ss.str();
 
     write_tasks(tasks);
+    return true;
 }
 
 void stop_task(const std::string& task_name) {

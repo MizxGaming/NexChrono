@@ -111,7 +111,17 @@ void run_tui() {
             case '\n': { // Enter key
                 if (current_selection == 0) { // Start Task
                     std::string task_name = get_input("Start Task Name: ");
-                    if (!task_name.empty()) start_task(task_name);
+                    if (!task_name.empty()) {
+                        if (!start_task(task_name)) {
+                            WINDOW* warning_win = newwin(5, 60, (LINES - 5) / 2, (COLS - 60) / 2);
+                            box(warning_win, 0, 0);
+                            mvwprintw(warning_win, 1, 2, "A task is already running.");
+                            mvwprintw(warning_win, 2, 2, "Maybe you would like to stop the previous task first?");
+                            wrefresh(warning_win);
+                            getch();
+                            delwin(warning_win);
+                        }
+                    }
                 } else if (current_selection == 1) { // Stop Task
                     std::string task_name = get_input("Stop Task Name: ");
                     if (!task_name.empty()) stop_task(task_name);
