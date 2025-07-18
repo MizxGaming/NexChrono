@@ -9,6 +9,6 @@
 void draw_layout(WINDOW*& header_win, WINDOW*& status_win, WINDOW*& menu_win, WINDOW*& timer_win);
 std::string get_input(std::string_view prompt);
 void run_tui();
-void draw_large_number(WINDOW* win, int start_y, int start_x, const std::string& number_str);
+void draw_large_number(WINDOW* win, int start_y, int start_x, const std::string& number_str, int scale_x, int scale_y);
 
 #endif // TUI_H

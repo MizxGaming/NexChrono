@@ -111,10 +111,10 @@ const std::vector<std::string> noxchrono_art = {
 
 
 void draw_large_number(WINDOW* win, int start_y, int start_x, const std::string& number_str, int scale_x, int scale_y) {
-    int base_digit_height = large_digits[0].size(); // 7
-    int base_digit_width = large_digits[0][0].length(); // 7
+    int base_digit_height = large_digits[0].size();
+    int base_digit_width = large_digits[0][0].length();
 
-    int current_y = start_y; // Start drawing from this y-coordinate
+    int current_y = start_y;
 
     for (char c : number_str) {
         const std::vector<std::string>* digit_art;
@@ -126,39 +126,17 @@ void draw_large_number(WINDOW* win, int start_y, int start_x, const std::string&
             continue;
         }
 
-        // Create a rotated version of the current character's ASCII art
-        // New dimensions: height = original_width, width = original_height
-        int original_height = digit_art->size();
-        int original_width = digit_art->at(0).length(); // Assuming all lines have same length for a digit
-
-        std::vector<std::string> rotated_art(original_width, std::string(original_height, ' '));
-
-        for (int r = 0; r < original_height; ++r) {
-            for (int c_orig = 0; c_orig < original_width; ++c_orig) {
-                if (digit_art->at(r).length() > c_orig && digit_art->at(r)[c_orig] != ' ') {
-                    // Clockwise rotation: (new_row, new_col) = (original_col, original_height - 1 - original_row)
-                    rotated_art[c_orig][original_height - 1 - r] = digit_art->at(r)[c_orig];
-                }
-            }
-        }
-
-        // Now print the rotated and scaled character
-        int rotated_char_height = original_width; // New height is original width
-        int rotated_char_width = original_height; // New width is original height
-
-        for (int r_rot = 0; r_rot < rotated_char_height; ++r_rot) {
-            std::string line = rotated_art[r_rot];
-            std::string scaled_line = "";
+        for (int r = 0; r < base_digit_height; ++r) {
+            std::string line = digit_art->at(r);
+            std::string scaled_line;
             for (char ch : line) {
-                for (int sx = 0; sx < scale_x; ++sx) {
-                    scaled_line += ch;
-                }
+                scaled_line += std::string(scale_x, ch);
             }
             for (int sy = 0; sy < scale_y; ++sy) {
-                mvwprintw(win, current_y + (r_rot * scale_y) + sy, start_x, scaled_line.c_str());
+                mvwprintw(win, current_y + (r * scale_y) + sy, start_x, scaled_line.c_str());
             }
         }
-        current_y += (rotated_char_height + 1) * scale_y; // Move down for next character, +1 for spacing
+        current_y += (base_digit_height + 1) * scale_y;
     }
 }
 
@@ -314,31 +292,22 @@ void run_tui() {
             char time_str[100];
             sprintf(time_str, "%02lld:%02lld:%02lld", hours, minutes, seconds);
 
-            // Calculate total base dimensions of the large time string (HH:MM:SS) after rotation
-            // Each character is now (base_digit_width x base_digit_height) rotated to (base_digit_height x base_digit_width)
-            // Total height = 6 chars * base_digit_height + 2 colons * base_digit_height + 7 spaces (between each char)
-            // Total width = base_digit_width (max of all chars)
-            int rotated_char_base_height = large_digits[0][0].length(); // Original width becomes new height
-            int rotated_char_base_width = large_digits[0].size(); // Original height becomes new width
+            // Calculate total base dimensions of the large time string (HH:MM:SS)
+            int base_digit_height = large_digits[0].size();
+            int base_digit_width = large_digits[0][0].length();
 
             // For HH:MM:SS, there are 8 characters (6 digits, 2 colons)
-            // Total height will be sum of heights of 8 characters + 7 spaces between them
-            int total_base_rotated_height = (rotated_char_base_height * 8) + 7; // 8 chars * 7 rows/char + 7 spaces
-            int total_base_rotated_width = rotated_char_base_width; // Max width of a rotated char
+            int total_base_height = (base_digit_height * 8) + 7; // 8 chars * 7 rows/char + 7 spaces
+            int total_base_width = base_digit_width;
 
-            int scale_x = std::max(1, (timer_win_w - 2) / total_base_rotated_width);
-            int scale_y = std::max(1, (timer_win_h - 2) / total_base_rotated_height);
+            int scale_x = std::max(1, (timer_win_w - 2) / total_base_width);
+            int scale_y = std::max(1, (timer_win_h - 2) / total_base_height);
 
-            // No maximum scale, let it fill the window as much as possible
-            // Ensure at least scale 1
-            if (scale_x == 0) scale_x = 1;
-            if (scale_y == 0) scale_y = 1;
+            int scaled_total_height = total_base_height * scale_y;
+            int scaled_total_width = total_base_width * scale_x;
 
-            int scaled_total_rotated_height = total_base_rotated_height * scale_y;
-            int scaled_total_rotated_width = total_base_rotated_width * scale_x;
-
-            int start_y = (timer_win_h - scaled_total_rotated_height) / 2;
-            int start_x = (timer_win_w - scaled_total_rotated_width) / 2;
+            int start_y = (timer_win_h - scaled_total_height) / 2;
+            int start_x = (timer_win_w - scaled_total_width) / 2;
 
             draw_large_number(timer_win, start_y, start_x, time_str, scale_x, scale_y);
         } else {
