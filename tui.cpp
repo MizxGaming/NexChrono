@@ -312,8 +312,35 @@ void run_tui() {
                             }
                         }
                     } else if (current_selection == 1) { // Stop Task
-                        if (auto task_name = get_input("Stop Task Name: "); !task_name.empty()) {
-                            stop_task(task_name);
+                        std::vector<Task> current_tasks = read_tasks();
+                        Task* running_task_to_stop = nullptr;
+                        for (auto& task : current_tasks) {
+                            if (task.running) {
+                                running_task_to_stop = &task;
+                                break;
+                            }
+                        }
+
+                        if (running_task_to_stop) {
+                            std::string prompt = "Stop task '" + running_task_to_stop->name + "'? (y/n): ";
+                            if (get_input(prompt) == "y") {
+                                stop_task(running_task_to_stop->name);
+                            }
+                        } else {
+                            // Display a message that no task is running
+                            int win_h = 5;
+                            int win_w = 40;
+                            WINDOW* no_task_win = newwin(win_h, win_w, (LINES - win_h) / 2, (COLS - win_w) / 2);
+                            box(no_task_win, 0, 0);
+                            const char* msg = "No task is currently running.";
+                            const char* button = "< OK >";
+                            mvwprintw(no_task_win, 1, (win_w - strlen(msg)) / 2, msg);
+                            wattron(no_task_win, A_REVERSE);
+                            mvwprintw(no_task_win, 3, (win_w - strlen(button)) / 2, button);
+                            wattroff(no_task_win, A_REVERSE);
+                            wrefresh(no_task_win);
+                            while(getch() != '\n');
+                            delwin(no_task_win);
                         }
                     } else if (current_selection == 2) { // Clear Data
                         if (get_input("Are you sure? (y/n): ") == "y") {
