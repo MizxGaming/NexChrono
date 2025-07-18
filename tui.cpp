@@ -7,7 +7,6 @@
 #include <algorithm> // For std::max
 #include <cstring>   // For strlen
 
-// This function now only creates/recreates the windows. No refreshing.
 // ASCII art for large digits
 const std::vector<std::string> large_digits[] = {
     // 0
@@ -100,24 +99,65 @@ const std::vector<std::string> large_digits[] = {
      "       "}
 };
 
-void draw_large_number(WINDOW* win, int start_y, int start_x, const std::string& number_str) {
-    int digit_width = large_digits[0][0].length();
-    int digit_height = large_digits[0].size();
-    int current_x = start_x;
+// ASCII art for "NoxChrono"
+const std::vector<std::string> noxchrono_art = {
+    R"( _   _             _                      _                )",
+    R"(| \ | | ___   ___ | | __ ___   ___   ___ | |__   ___  ___ )",
+    R"(|  \| |/ _ \ / _ \| |/ // _ \ / _ \ / _ \| '_ \ / _ \/ __|)",
+    R"(| |\  | (_) | (_) |   <| (_) | (_) | (_) | |_) | (_) \__ \)",
+    R"(|_| \_|\___/ \___/|_|\_\\___/ \___/ \___/|_.__/ \___/|___/)"
+};
+
+
+void draw_large_number(WINDOW* win, int start_y, int start_x, const std::string& number_str, int scale_x, int scale_y) {
+    int base_digit_height = large_digits[0].size(); // 7
+    int base_digit_width = large_digits[0][0].length(); // 7
+
+    int current_y = start_y; // Start drawing from this y-coordinate
 
     for (char c : number_str) {
+        const std::vector<std::string>* digit_art;
         if (c >= '0' && c <= '9') {
-            int digit_index = c - '0';
-            for (int i = 0; i < digit_height; ++i) {
-                mvwprintw(win, start_y + i, current_x, large_digits[digit_index][i].c_str());
-            }
-            current_x += digit_width + 1; // +1 for spacing between digits
+            digit_art = &large_digits[c - '0'];
         } else if (c == ':') {
-            for (int i = 0; i < digit_height; ++i) {
-                mvwprintw(win, start_y + i, current_x, large_digits[10][i].c_str()); // Index 10 for colon
-            }
-            current_x += large_digits[10][0].length() + 1; // +1 for spacing
+            digit_art = &large_digits[10];
+        } else {
+            continue;
         }
+
+        // Create a rotated version of the current character's ASCII art
+        // New dimensions: height = original_width, width = original_height
+        int original_height = digit_art->size();
+        int original_width = digit_art->at(0).length(); // Assuming all lines have same length for a digit
+
+        std::vector<std::string> rotated_art(original_width, std::string(original_height, ' '));
+
+        for (int r = 0; r < original_height; ++r) {
+            for (int c_orig = 0; c_orig < original_width; ++c_orig) {
+                if (digit_art->at(r).length() > c_orig && digit_art->at(r)[c_orig] != ' ') {
+                    // Clockwise rotation: (new_row, new_col) = (original_col, original_height - 1 - original_row)
+                    rotated_art[c_orig][original_height - 1 - r] = digit_art->at(r)[c_orig];
+                }
+            }
+        }
+
+        // Now print the rotated and scaled character
+        int rotated_char_height = original_width; // New height is original width
+        int rotated_char_width = original_height; // New width is original height
+
+        for (int r_rot = 0; r_rot < rotated_char_height; ++r_rot) {
+            std::string line = rotated_art[r_rot];
+            std::string scaled_line = "";
+            for (char ch : line) {
+                for (int sx = 0; sx < scale_x; ++sx) {
+                    scaled_line += ch;
+                }
+            }
+            for (int sy = 0; sy < scale_y; ++sy) {
+                mvwprintw(win, current_y + (r_rot * scale_y) + sy, start_x, scaled_line.c_str());
+            }
+        }
+        current_y += (rotated_char_height + 1) * scale_y; // Move down for next character, +1 for spacing
     }
 }
 
@@ -163,6 +203,14 @@ std::string get_input(std::string_view prompt) {
     char input_str[50];
     echo();
     curs_set(1);
+    int ch = wgetch(input_win);
+    if (ch == 27) { // Escape key
+        curs_set(0);
+        noecho();
+        delwin(input_win);
+        return ""; // Return empty string on escape
+    }
+    ungetch(ch); // Put the character back if it's not escape
     wgetstr(input_win, input_str);
     curs_set(0);
     noecho();
@@ -186,21 +234,20 @@ void run_tui() {
     const std::vector<std::string_view> menu_items = {"Start Task", "Stop Task", "Clear Data", "Exit"};
     int current_selection = 0;
 
-    // Initial drawing of timer_win border and title
-    box(timer_win, 0, 0);
-    mvwprintw(timer_win, 0, 2, "[ Timer ]");
-
     while (true) {
         // --- EFFICIENT REDRAW SECTION ---
         // Erase window contents, not the whole screen
         werase(header_win);
         werase(status_win);
         werase(menu_win);
-        // werase(timer_win); // Handled more granularly below
+        werase(timer_win); // Now clear the whole timer window
 
         // Re-draw the layout borders and titles
         box(header_win, 0, 0);
-        mvwprintw(header_win, 2, (getmaxx(header_win) - 9) / 2, "NexChrono");
+        // Draw NoxChrono art
+        for (size_t i = 0; i < noxchrono_art.size(); ++i) {
+            mvwprintw(header_win, i + 1, (getmaxx(header_win) - noxchrono_art[i].length()) / 2, noxchrono_art[i].c_str());
+        }
 
         box(status_win, 0, 0);
         mvwprintw(status_win, 0, 2, "[ Tasks ]");
@@ -214,11 +261,14 @@ void run_tui() {
             if (i == current_selection) wattroff(menu_win, A_REVERSE);
         }
 
+        box(timer_win, 0, 0); // Draw border and title for timer window
+        mvwprintw(timer_win, 0, 2, "[ Timer ]");
+
         // Refresh the virtual screen for each window
         wnoutrefresh(header_win);
         wnoutrefresh(status_win);
         wnoutrefresh(menu_win);
-        // wnoutrefresh(timer_win); // Handled after content update
+        wnoutrefresh(timer_win); // Refresh the whole timer window
 
         // Update the physical screen once
         doupdate();
@@ -234,12 +284,9 @@ void run_tui() {
             }
         }
 
-        // Clear only the content area of the timer window
+        // No need to clear content area explicitly, werase(timer_win) handles it
         int timer_win_h, timer_win_w;
         getmaxyx(timer_win, timer_win_h, timer_win_w);
-        for (int i = 1; i < timer_win_h - 1; ++i) { // Clear rows between borders
-            mvwprintw(timer_win, i, 1, std::string(timer_win_w - 2, ' ').c_str());
-        }
 
         if (running_task) {
             long long total_elapsed = running_task->elapsed_seconds;
@@ -252,25 +299,39 @@ void run_tui() {
             char time_str[100];
             sprintf(time_str, "%02lld:%02lld:%02lld", hours, minutes, seconds);
 
-            int digit_height = large_digits[0].size();
-            int digit_width = large_digits[0][0].length();
-            int colon_width = large_digits[10][0].length();
+            // Calculate total base dimensions of the large time string (HH:MM:SS) after rotation
+            // Each character is now (base_digit_width x base_digit_height) rotated to (base_digit_height x base_digit_width)
+            // Total height = 6 chars * base_digit_height + 2 colons * base_digit_height + 7 spaces (between each char)
+            // Total width = base_digit_width (max of all chars)
+            int rotated_char_base_height = large_digits[0][0].length(); // Original width becomes new height
+            int rotated_char_base_width = large_digits[0].size(); // Original height becomes new width
 
-            // Calculate total width of the large time string (HH:MM:SS)
-            // 6 digits * digit_width + 2 colons * colon_width + 7 spaces (between each char)
-            int total_large_time_width = (6 * digit_width) + (2 * colon_width) + 7; // Approximation
+            // For HH:MM:SS, there are 8 characters (6 digits, 2 colons)
+            // Total height will be sum of heights of 8 characters + 7 spaces between them
+            int total_base_rotated_height = (rotated_char_base_height * 8) + 7; // 8 chars * 7 rows/char + 7 spaces
+            int total_base_rotated_width = rotated_char_base_width; // Max width of a rotated char
 
-            int start_y = (timer_win_h - digit_height) / 2;
-            int start_x = (timer_win_w - total_large_time_width) / 2;
+            int scale_x = std::max(1, (timer_win_w - 2) / total_base_rotated_width);
+            int scale_y = std::max(1, (timer_win_h - 2) / total_base_rotated_height);
 
-            draw_large_number(timer_win, start_y, start_x, time_str);
+            // No maximum scale, let it fill the window as much as possible
+            // Ensure at least scale 1
+            if (scale_x == 0) scale_x = 1;
+            if (scale_y == 0) scale_y = 1;
+
+            int scaled_total_rotated_height = total_base_rotated_height * scale_y;
+            int scaled_total_rotated_width = total_base_rotated_width * scale_x;
+
+            int start_y = (timer_win_h - scaled_total_rotated_height) / 2;
+            int start_x = (timer_win_w - scaled_total_rotated_width) / 2;
+
+            draw_large_number(timer_win, start_y, start_x, time_str, scale_x, scale_y);
         } else {
             mvwprintw(timer_win, timer_win_h / 2, (timer_win_w - strlen("No task running")) / 2, "No task running");
         }
-        wnoutrefresh(timer_win);
-        doupdate();
 
-        if (int ch = getch(); ch != ERR) {
+        int ch = getch();
+        if (ch != ERR) {
             if (ch == KEY_RESIZE) {
                 endwin();
                 refresh();
@@ -286,7 +347,9 @@ void run_tui() {
                 case KEY_DOWN:
                     current_selection = (current_selection + 1) % menu_items.size();
                     break;
-                case '\n': { // Enter key
+                case '\n': // Enter key
+                case 's': // Start Task shortcut
+                    if (ch == 's') current_selection = 0;
                     if (current_selection == 0) { // Start Task
                         if (auto task_name = get_input("Start Task Name: "); !task_name.empty()) {
                             if (!start_task(task_name)) {
@@ -311,7 +374,11 @@ void run_tui() {
                                 delwin(warning_win);
                             }
                         }
-                    } else if (current_selection == 1) { // Stop Task
+                    } 
+                    // Fallthrough for other shortcuts
+                case 'S': // Stop Task shortcut
+                    if (ch == 'S') current_selection = 1;
+                    if (current_selection == 1) { // Stop Task
                         std::vector<Task> current_tasks = read_tasks();
                         Task* running_task_to_stop = nullptr;
                         for (auto& task : current_tasks) {
@@ -342,13 +409,21 @@ void run_tui() {
                             while(getch() != '\n');
                             delwin(no_task_win);
                         }
-                    } else if (current_selection == 2) { // Clear Data
+                    }
+                    // Fallthrough for other shortcuts
+                case 'X': // Clear Data shortcut
+                    if (ch == 'X') current_selection = 2;
+                    if (current_selection == 2) { // Clear Data
                         if (get_input("Are you sure? (y/n): ") == "y") {
                             if (get_input("Type 'confirm' to delete all data: ") == "confirm") {
                                 clear_data();
                             }
                         }
-                    } else if (current_selection == 3) { // Exit
+                    }
+                    // Fallthrough for other shortcuts
+                case 'q': // Exit shortcut
+                    if (ch == 'q') current_selection = 3;
+                    if (current_selection == 3) { // Exit
                         delwin(header_win);
                         delwin(status_win);
                         delwin(menu_win);
@@ -357,7 +432,9 @@ void run_tui() {
                         return;
                     }
                     break;
-                }
+                case 27: // Escape key
+                    // Handled by get_input, or does nothing if no input field is open
+                    break;
             }
         }
     }
