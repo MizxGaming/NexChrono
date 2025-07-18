@@ -6,8 +6,9 @@
 #include <ncurses.h> // For WINDOW type
 
 // Function declarations from tui.cpp
-void draw_layout(WINDOW*& header_win, WINDOW*& status_win, WINDOW*& menu_win);
+void draw_layout(WINDOW*& header_win, WINDOW*& status_win, WINDOW*& menu_win, WINDOW*& timer_win);
 std::string get_input(std::string_view prompt);
 void run_tui();
+void draw_large_number(WINDOW* win, int start_y, int start_x, const std::string& number_str);
 
 #endif // TUI_H
