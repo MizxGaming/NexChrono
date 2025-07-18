@@ -1,4 +1,4 @@
-#include "tui.cpp"
+#include "tui.h"
 
 int main() {
     run_tui();
