@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <algorithm> // For std::max
+#include <cctype>   // For isprint
 #include <cstring>   // For strlen
 
 // ASCII art for large digits
@@ -198,26 +199,40 @@ std::string get_input(std::string_view prompt) {
     WINDOW* input_win = newwin(input_win_h, input_win_w, (term_y - input_win_h) / 2, (term_x - input_win_w) / 2);
     box(input_win, 0, 0);
     mvwprintw(input_win, 1, 2, prompt.data());
-    wrefresh(input_win); // Refresh only this small, temporary window
+    wrefresh(input_win);
 
-    char input_str[50];
-    echo();
-    curs_set(1);
-    int ch = wgetch(input_win);
-    if (ch == 27) { // Escape key
-        curs_set(0);
-        noecho();
-        delwin(input_win);
-        return ""; // Return empty string on escape
+    std::string input_str;
+    int ch;
+    curs_set(1); // Show cursor
+    noecho();    // Disable echoing of characters
+
+    while (true) {
+        ch = wgetch(input_win);
+
+        if (ch == 27) { // Escape key
+            input_str.clear(); // Clear any typed input
+            break;
+        } else if (ch == 10) { // Enter key
+            break;
+        } else if (ch == KEY_BACKSPACE || ch == 127) { // Backspace or Delete
+            if (!input_str.empty()) {
+                input_str.pop_back();
+                mvwdelch(input_win, 1, 2 + prompt.length() + input_str.length()); // Erase character from screen
+                wrefresh(input_win);
+            }
+        } else if (isprint(ch)) { // Printable character
+            if (input_str.length() < 49) { // Limit input length
+                input_str += (char)ch;
+                mvwaddch(input_win, 1, 2 + prompt.length() + input_str.length() - 1, ch);
+                wrefresh(input_win);
+            }
+        }
     }
-    ungetch(ch); // Put the character back if it's not escape
-    wgetstr(input_win, input_str);
-    curs_set(0);
-    noecho();
 
+    curs_set(0); // Hide cursor
     delwin(input_win);
 
-    return std::string(input_str);
+    return input_str;
 }
 
 void run_tui() {
