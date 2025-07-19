@@ -111,6 +111,14 @@ R"( / /  \ \/ /    \ \__/ /   _/ / \ \_   \ \___    ) )( (   ( ( \ \_))  \ \__/ 
 R"((_/    \__/      \____/   (__/   \__)   \____)  /_/  \_\   )_) \__/    \____/   (_/    \__/      \____/  )"
 };
 
+const std::vector<std::string> noxchrono_art_small = {
+R"(     __                 ___  _                                )",
+R"(  /\ \ \  ___  __  __  / __\| |__   _ __   ___   _ __    ___  )",
+R"( /  \/ / / _ \ \ \/ / / /   | '_ \ | '__| / _ \ | '_ \  / _ \ )",
+R"(/ /\  / | (_) | >  < / /___ | | | || |   | (_) || | | || (_) |)",
+R"(\__ \/   \___/ /_\/_\\____/ |_|_|_||_|    \___/ |_|_|_| \___/ )"
+};
+
 
 void draw_large_string_horizontally(WINDOW* win, int start_y, int start_x, const std::string& text, int scale_x, int scale_y) {
     int base_digit_height = large_digits[0].size();
@@ -151,7 +159,11 @@ void draw_layout(WINDOW*& header_win, WINDOW*& status_win, WINDOW*& menu_win, WI
     int timer_w = term_x / 3;    // 1/3 for the timer
 
     // Header window
-    int header_h = 10;
+    int header_h = noxchrono_art_small.size() + 2;
+    if (getmaxx(stdscr) > 120) {
+        header_h = noxchrono_art.size() + 2;
+    }
+
     if (header_win) delwin(header_win);
     header_win = newwin(header_h, main_w, 0, 0);
 
@@ -242,8 +254,14 @@ void run_tui() {
         // Re-draw the layout borders and titles
         box(header_win, 0, 0);
         // Draw NoxChrono art
-        for (size_t i = 0; i < noxchrono_art.size(); ++i) {
-            mvwprintw(header_win, i + 1, (getmaxx(header_win) - noxchrono_art[i].length()) / 2, noxchrono_art[i].c_str());
+        if (getmaxx(header_win) < 120) {
+            for (size_t i = 0; i < noxchrono_art_small.size(); ++i) {
+                mvwprintw(header_win, i + 1, (getmaxx(header_win) - noxchrono_art_small[i].length()) / 2, noxchrono_art_small[i].c_str());
+            }
+        } else {
+            for (size_t i = 0; i < noxchrono_art.size(); ++i) {
+                mvwprintw(header_win, i + 1, (getmaxx(header_win) - noxchrono_art[i].length()) / 2, noxchrono_art[i].c_str());
+            }
         }
 
         box(status_win, 0, 0);
