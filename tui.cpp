@@ -175,7 +175,7 @@ std::string get_input(std::string_view prompt) {
     getmaxyx(stdscr, term_y, term_x);
 
     int input_win_h = 3;
-    int input_win_w = 40;
+    int input_win_w = std::max(40, (int)prompt.length() + 15); // +15 for input and border
     WINDOW* input_win = newwin(input_win_h, input_win_w, (term_y - input_win_h) / 2, (term_x - input_win_w) / 2);
     box(input_win, 0, 0);
     keypad(input_win, TRUE);
