@@ -1,5 +1,6 @@
 #include "tui.h"
 #include "main.h"
+#include "large_digits.h" // Include the new header for digit art
 #include <ncurses.h>
 #include <vector>
 #include <string>
@@ -8,94 +9,14 @@
 #include <cctype>   // For isprint
 #include <cstring>   // For strlen
 
-// ASCII art for large digits
-const std::vector<std::string> large_digits[] = {
-    // 0
-    {"   ___    ",
-     "  / _ \\   ",
-     " | | | |  ",
-     " | | | |  ",
-     " | |_| |  ",
-     "  \\___/   "},
-    // 1
-    {"   __    ",
-     "  /  |   ",
-     "  `| |   ",
-     "   | |   ",
-     "  _| |_  ",
-     " |_____| "},
-     // "         "},
-    // 2
-    {"  ____   ",
-     " |__  \\  ",
-     "    ) |  ",
-     "   / /   ",
-     "  / /__  ",
-     " |_____| "},
-    // 3  
-    {"  ____   ",
-     " |___ \\  ",
-     "   __) | ",
-     "  |__ <  ",
-     "  ___) | ",
-     " |____/  "},
-    // 4
-    {"  _  _    ",
-     " | || |   ",
-     " | || |_  ",
-     " |__   _| ",
-     "    | |   ",
-     "    |_|   "},
-    // 5
-    {"  ______  ",
-     " | _____| ",
-     " | |___   ",
-     " |____ \\  ",
-     "  ____) | ",
-     " |_____/  "},
-    // 6
-    {"    __    ",
-     "   / /    ",
-     "  / /_    ",
-     " | '_ \\   ",
-     " | (_) |  ",
-     "  \\___/   "},
-    // 7
-    {"  ______  ",
-     " |____  | ",
-     "     / /  ",
-     "    / /   ",
-     "   / /    ",
-     "  /_/     "},
-    // 8
-    {"   ___    ",
-     "  / _ \\   ",
-     " | (_) |  ",
-     "  > _ <   ",
-     " | (_) |  ",
-     "  \\___/   "},
-    // 9
-    {"   ___    ",
-     "  / _ \\   ",
-     " | (_) |  ",
-     "  \\__, |  ",
-     "    / /   ",
-     "   /_/    "},
-    // :
-    {"   _   ",
-     "  (_)  ",
-     "       ",
-     "   _   ",
-     "  (_)  ",
-     "       ",
-     "       "}
-};
+// The hardcoded 'large_digits' array is now removed.
+// It is replaced by 'large_digits_data' from "large_digits.h".
 
 // ASCII art for "NoxChrono"
 const std::vector<std::string> noxchrono_art = {
 R"(    __      _     ____     __     __     ____   __    __   ______       ____        __      _     ____   )",
 R"(   /  \    / )   / __ \   (_ \   / _)   / ___) (  \  /  ) (   __ \     / __ \      /  \    / )   / __ \  )",
-R"(  / /\ \  / /   / /  \ \    \ \_/ /    / /      \ (__) /   ) (__) )   / /  \ \    / /\ \  / /   / /  \ \ )",
+R"(  / /  \  / /   / /  \ \    \ \_/ /    / /      \ (__) /   ) (__) )   / /  \ \    / /  \  / /   / /  \ \ )",
 R"(  ) ) ) ) ) )  ( ()  () )    \   /    ( (        ) __ (   (    __/   ( ()  () )   ) ) ) ) ) )  ( ()  () ))",
 R"( ( ( ( ( ( (   ( ()  () )    / _ \    ( (       ( (  ) )   ) \ \  _  ( ()  () )  ( ( ( ( ( (   ( ()  () ))",
 R"( / /  \ \/ /    \ \__/ /   _/ / \ \_   \ \___    ) )( (   ( ( \ \_))  \ \__/ /   / /  \ \/ /    \ \__/ / )",
@@ -112,21 +33,27 @@ R"(\__ \/   \___/ /_\/_\\____/ |_|_|_||_|    \___/ |_|_|_| \___/ )"
 
 
 void draw_large_string_horizontally(WINDOW* win, int start_y, int start_x, const std::string& text, int scale_x, int scale_y) {
-    int base_digit_height = large_digits[0].size();
-    int base_digit_width = large_digits[0][0].length();
+    if (large_digits_data.empty() || large_digits_data[0].empty()) return;
+
+    int base_digit_height = large_digits_data[0].size();
+    int base_digit_width = large_digits_data[0][0].length();
     int current_x = start_x;
 
     for (char c : text) {
         const std::vector<std::string>* digit_art;
         if (c >= '0' && c <= '9') {
-            digit_art = &large_digits[c - '0'];
+            digit_art = &large_digits_data[c - '0'];
         } else if (c == ':') {
-            digit_art = &large_digits[10];
+            digit_art = &large_digits_data[10];
         } else {
             continue;
         }
 
-        for (int r = 0; r < base_digit_height; ++r) {
+        if (digit_art->empty()) continue;
+
+        for (size_t r = 0; r < base_digit_height; ++r) {
+            if (r >= digit_art->size()) continue;
+
             std::string line = digit_art->at(r);
             std::string scaled_line;
             for (char ch : line) {
@@ -138,7 +65,7 @@ void draw_large_string_horizontally(WINDOW* win, int start_y, int start_x, const
                 }
             }
         }
-        current_x += (base_digit_width + 1) * scale_x;
+        current_x += (base_digit_width * scale_x) + scale_x; // Add scaled spacing
     }
 }
 
@@ -301,51 +228,51 @@ void run_tui() {
             long long minutes = (total_elapsed % 3600) / 60;
             long long seconds = total_elapsed % 60;
 
-            char hours_str[3], mins_str[3], secs_str[3];
-            sprintf(hours_str, "%02lld", hours);
-            sprintf(mins_str, "%02lld", minutes);
-            sprintf(secs_str, "%02lld", seconds);
+            char time_str_full[9];
+            sprintf(time_str_full, "%02lld:%02lld:%02lld", hours, minutes, seconds);
 
-            int base_digit_height = 7;
-            int base_digit_width = 7;
-            int row_spacing = 2; // Vertical space between HH, MM, SS
-            int padding = 2;     // Padding from the window borders
+            if (!large_digits_data.empty()) {
+                int base_digit_height = large_digits_data[0].size();
+                int base_digit_width = 0;
+                if(!large_digits_data[0].empty()){
+                    base_digit_width = large_digits_data[0][0].length();
+                }
 
-            int component_base_width = (base_digit_width * 2) + 1;
-            int component_base_height = base_digit_height;
+                int padding = 2;
+                int available_width = timer_win_w - 2 * padding;
+                int available_height = timer_win_h - 2 * padding;
 
-            int available_width = timer_win_w - 2 * padding;
-            int available_height = timer_win_h - 2 * padding;
+                // Calculate required width for the full time string "HH:MM:SS"
+                // 8 characters, 7 spaces between them
+                int required_width = (base_digit_width * 8) + 7;
 
-            int total_content_base_height = (component_base_height * 3) + (row_spacing * 2);
+                int scale = 1;
+                if (required_width > 0) {
+                    scale = std::max(1, available_width / required_width);
+                }
 
-            int scale_x = (available_width > 0) ? available_width / component_base_width : 0;
-            int scale_y = (available_height > 0) ? available_height / total_content_base_height : 0;
+                int scaled_digit_width = base_digit_width * scale;
+                int scaled_digit_height = base_digit_height * scale;
 
-            if (scale_x > 0 && scale_y > 0) {
-                int scale = std::min(scale_x, scale_y);
+                int total_content_width = (scaled_digit_width * 8) + (7 * scale);
+                int total_content_height = scaled_digit_height;
 
-                int scaled_comp_width = component_base_width * scale;
-                int scaled_comp_height = component_base_height * scale;
-                int total_content_height = (scaled_comp_height * 3) + (row_spacing * 2);
-
-                int start_x = (timer_win_w - scaled_comp_width) / 2;
-                int start_y = (timer_win_h - total_content_height) / 2;
-
-                draw_large_string_horizontally(timer_win, start_y, start_x, hours_str, scale, scale);
-                draw_large_string_horizontally(timer_win, start_y + scaled_comp_height + row_spacing, start_x, mins_str, scale, scale);
-                draw_large_string_horizontally(timer_win, start_y + 2 * (scaled_comp_height + row_spacing), start_x, secs_str, scale, scale);
+                if (scale > 0 && total_content_width < available_width && total_content_height < available_height) {
+                    int start_x = (timer_win_w - total_content_width) / 2;
+                    int start_y = (timer_win_h - total_content_height) / 2;
+                    draw_large_string_horizontally(timer_win, start_y, start_x, time_str_full, scale, scale);
+                } else {
+                     mvwprintw(timer_win, timer_win_h / 2, (timer_win_w - strlen(time_str_full)) / 2, time_str_full);
+                }
             } else {
-                char time_str[100];
-                sprintf(time_str, "%02lld:%02lld:%02lld", hours, minutes, seconds);
-                mvwprintw(timer_win, timer_win_h / 2, (timer_win_w - strlen(time_str)) / 2, time_str);
+                 mvwprintw(timer_win, timer_win_h / 2, (timer_win_w - strlen(time_str_full)) / 2, time_str_full);
             }
-        } else {
+        }
+        else {
             const char* msg = "No task running";
             mvwprintw(timer_win, timer_win_h / 2, (timer_win_w - strlen(msg)) / 2, msg);
         }
         wrefresh(timer_win);
-        wrefresh(timer_win); // Refresh the timer window specifically to show the update
 
         int ch = getch();
         if (ch != ERR) {
